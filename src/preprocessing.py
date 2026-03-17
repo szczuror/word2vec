@@ -19,12 +19,14 @@ def clean(text: str) -> list[str]:
 
     return tokens
 
-def subsampling(tokens: list[str], min_count: int = 2, threshold: float = 1e-4):
+def subsampling(tokens: list[str], min_count: int = 2, threshold: float = 1e-4) -> list[str]:
     word_counts = Counter(tokens)
     words_len = len(tokens)
 
     filtered = []
     for word in tokens:
+        count = word_counts[word]
+
         if count < min_count:
             continue
 
@@ -69,7 +71,7 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
     for i, word in enumerate(tokens):
         center = word2id[word]
 
-        dynamic_window = np.random.randint(1, max_window_size + 1)
+        dynamic_window = np.random.randint(1, window_size + 1)
         start = max(0, i - dynamic_window)
         end = min(n, i + dynamic_window + 1)
 
