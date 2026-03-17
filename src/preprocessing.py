@@ -6,58 +6,51 @@ from collections import Counter
 # dataset I chose already has all small letters and no interpunction signs, however, I will provide a fucntion to do so
 # in case i want to use another dataset
 
-
+regex_pattern = re.compile(r'[^a-z\s]')
 def clean(text: str) -> list[str]:
     """
     Function to make all words lowercase and remove punctuation
     :param text:
     :return:
     """
-    text = text.lower()
-    text = re.sub(r'[^a-z\s]', ' ', text)
-    tokens = text.split()
+    return regex_pattern.sub(' ', text.lower()).split()
 
-    return tokens
+def subsampling(tokens: list[str], word_counts: Counter, min_count: int = 2, threshold: float = 1e-4) -> list[str]:
+    words_len = len(tokens) # ;)
 
-def subsampling(tokens: list[str], min_count: int = 2, threshold: float = 1e-4) -> list[str]:
-    word_counts = Counter(tokens)
-    words_len = len(tokens)
-
-    filtered = []
-    for word in tokens:
-        count = word_counts[word]
-
+    keep_probs = {}
+    for word, count in word_counts.items():
         if count < min_count:
-            continue
-
-        freq = count / words_len
-        
-        p_drop = 1 - np.sqrt(threshold / freq)
-
-        if p_drop > np.random.rand():
-            continue
-
-        filtered.append(word)
+            keep_probs[word] = 0.0
+        else:
+            freq = count / words_len
+            # p_drop = 1 - sqrt(threshold / freq), 
+            # p_keep = 1 - p_drop = sqrt(threshold / freq)
+            keep_probs[word] = np.sqrt(threshold / freq)
     
+    random_vec = np.random.rand(words_len)
+
+    filtered = [word for i, word in enumerate(tokens)
+        if keep_probs.get(word, 0.0) > random_vec[i]
+    ]
+
     return filtered
 
-
-def build_vocabulary(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], int]:
+def build_vocab(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], Counter]:
     """
     Function to build vocabulary from tokens
     :param tokens:
     :return:
     """
-    words = sorted(list(set(tokens)))
+    word_counts = Counter(tokens)
+    words = sorted(list(word_counts.keys()))
 
     word2id = {word: i for i, word in enumerate(words)}
     id2word = {i: word for i, word in enumerate(words)}
 
-    vocab_size = len(words)
+    return word2id, id2word, word_counts
 
-    return word2id, id2word, vocab_size
-
-def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2) -> list[tuple[int, int]]:
+def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2):
     """
     Function to build pairs of skip-gram tokens dynamically
     :param tokens:
@@ -65,28 +58,26 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
     :param window_size:
     :return:
     """
-    pairs: list[tuple[int, int]] = []
-    n: int = len(tokens)
+    token_ids = [word2id[w] for w in tokens if w in word2id]
+    n = len(token_ids)
 
-    for i, word in enumerate(tokens):
-        center = word2id[word]
+    dynamic_windows = np.random.randint(1, window_size + 1, size = n)
 
-        dynamic_window = np.random.randint(1, window_size + 1)
-        start = max(0, i - dynamic_window)
-        end = min(n, i + dynamic_window + 1)
+    pairs = []
+    for i, center in enumerate(token_ids):
+        window = dynamic_windows[i]
+        start = max(0, i - window)
+        end = min(n, i + window + 1)
 
         for j in range(start, end):
             if i != j:
-                pairs.append((center, word2id[tokens[j]]))
-
-    return pairs
+                yield (center, token_ids[j])
 
 
-def get_negative_sampling_distribution(tokens : list[str], word2id: dict[str, int]) -> np.ndarray:
+def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, int]) -> np.ndarray:
     """
     Function to get negative sampling distribution
     """
-    word_counts = Counter(tokens)
     vocab_size = len(word2id)
 
     counts_array = np.zeros(vocab_size)
