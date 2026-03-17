@@ -19,6 +19,27 @@ def clean(text: str) -> list[str]:
 
     return tokens
 
+def subsampling(tokens: list[str], min_count: int = 2, threshold: float = 1e-4):
+    word_counts = Counter(tokens)
+    words_len = len(tokens)
+
+    filtered = []
+    for word in tokens:
+        if count < min_count:
+            continue
+
+        freq = count / words_len
+        
+        p_drop = 1 - np.sqrt(threshold / freq)
+
+        if p_drop > np.random.rand():
+            continue
+
+        filtered.append(word)
+    
+    return filtered
+
+
 def build_vocabulary(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], int]:
     """
     Function to build vocabulary from tokens
@@ -36,7 +57,7 @@ def build_vocabulary(tokens: list[str]) -> tuple[dict[str, int], dict[int, str],
 
 def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2) -> list[tuple[int, int]]:
     """
-    Function to build pairs of skip-gram tokens
+    Function to build pairs of skip-gram tokens dynamically
     :param tokens:
     :param word2id:
     :param window_size:
@@ -48,8 +69,9 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
     for i, word in enumerate(tokens):
         center = word2id[word]
 
-        start = max(0, i - window_size)
-        end = min(n, i + window_size + 1)
+        dynamic_window = np.random.randint(1, max_window_size + 1)
+        start = max(0, i - dynamic_window)
+        end = min(n, i + dynamic_window + 1)
 
         for j in range(start, end):
             if i != j:
@@ -68,8 +90,9 @@ def get_negative_sampling_distribution(tokens : list[str], word2id: dict[str, in
     counts_array = np.zeros(vocab_size)
 
     for word, count in word_counts.items():
-        word_id = word2id[word]
-        counts_array[word_id] = count
+        if word in word2id:
+            word_id = word2id[word]
+            counts_array[word_id] = count
 
     p_n = np.power(counts_array, 0.75) # word2vec publication research
 
