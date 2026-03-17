@@ -1,7 +1,10 @@
+import re
+import numpy as np
+from collections import Counter
+
 # tokenization, text cleaning, vocab building
 # dataset I chose already has all small letters and no interpunction signs, however, I will provide a fucntion to do so
 # in case i want to use another dataset
-import re
 
 
 def clean(text: str) -> list[str]:
@@ -39,7 +42,7 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
     :param window_size:
     :return:
     """
-    pairs = list[tuple[int, int]] = []
+    pairs: list[tuple[int, int]] = []
     n: int = len(tokens)
 
     for i, word in enumerate(tokens):
@@ -53,3 +56,25 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
                 pairs.append((center, word2id[tokens[j]]))
 
     return pairs
+
+
+def get_negative_sampling_distribution(tokens : list[str], word2id: dict[str, int]) -> np.ndarray:
+    """
+    Function to get negative sampling distribution
+    """
+    word_counts = Counter(tokens)
+    vocab_size = len(word2id)
+
+    counts_array = np.zeros(vocab_size)
+
+    for word, count in word_counts.items():
+        word_id = word2id[word]
+        counts_array[word_id] = count
+
+    p_n = np.power(counts_array, 0.75) # word2vec publication research
+
+    p_n = p_n / np.sum(p_n)
+
+    return p_n
+
+# TODO normalization? for example: cat, cats, and so on as one word. Doesnt seem like a very good idea tho
