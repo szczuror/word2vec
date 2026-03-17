@@ -93,4 +93,6 @@ def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, 
 
     return p_n
 
+# def detect_phrases(tokens: list[str], delta: float = 5.0, threshold: float = 1e-4) -> list[str]:
+
 # TODO normalization? for example: cat, cats, and so on as one word. Doesnt seem like a very good idea tho
