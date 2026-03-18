@@ -46,10 +46,11 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
         window = dynamic_windows[i]
         start = max(0, i - window)
         end = min(n, i + window + 1)
+        center_id = word2id[center]
 
         for j in range(start, end):
             if i != j:
-                yield center, word2id[tokens[j]]
+                yield center_id, word2id[tokens[j]]
 
 
 def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, int]) -> np.ndarray:
