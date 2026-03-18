@@ -9,17 +9,17 @@ from collections import Counter
 regex_pattern = re.compile(r"[^a-z'\s]")
 def clean(text: str) -> list[str]:
     """
-    Function to make all words lowercase and remove punctuation
-    :param text:
-    :return:
+    Cleans the input text by lowering case, removing punctuation, and splitting into tokens.
+    :param text: Raw input string.
+    :return: List of cleaned word tokens.
     """
     return regex_pattern.sub(' ', text.lower()).split()
 
 def build_vocab(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], Counter]:
     """
-    Function to build vocabulary from tokens
-    :param tokens:
-    :return:
+    Builds vocabulary mappings and counts word frequencies.
+    :param tokens: List of all tokens.
+    :return: A tuple of (word2id, id2word, word_counts).
     """
     word_counts = Counter(tokens)
     words = sorted(list(word_counts.keys()))
@@ -31,31 +31,34 @@ def build_vocab(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], Coun
 
 def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2):
     """
-    Function to build pairs of skip-gram tokens dynamically
-    :param tokens:
-    :param word2id:
-    :param window_size:
-    :return:
+    Generator for (center_word, context_id) pairs using a dynamic window size.
+    :param tokens: List of tokens.
+    :param word2id: Dictionary mapping words to their IDs.
+    :param window_size: Maximum radius of the context window.
     """
-    token_ids = [word2id[w] for w in tokens if w in word2id]
-    n = len(token_ids)
+    n = len(tokens)
 
     dynamic_windows = np.random.randint(1, window_size + 1, size = n)
 
-    pairs = []
-    for i, center in enumerate(token_ids):
+    for i, center in enumerate(tokens):
+        if center not in word2id:
+            continue
         window = dynamic_windows[i]
         start = max(0, i - window)
         end = min(n, i + window + 1)
 
         for j in range(start, end):
             if i != j:
-                yield (center, token_ids[j])
+                yield center, word2id[tokens[j]]
 
 
 def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, int]) -> np.ndarray:
     """
-    Function to get negative sampling distribution
+    Calculates the probability distribution for Negative Sampling.
+    Uses the formula P(w) = count(w)^0.75 / sum(count^0.75) which helps boost rare words.
+    :param word_counts: Counter object with word frequencies.
+    :param word2id: Dictionary mapping words to IDs.
+    :return: Numpy array of probabilities for each word ID.
     """
     vocab_size = len(word2id)
 
@@ -66,7 +69,7 @@ def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, 
             word_id = word2id[word]
             counts_array[word_id] = count
 
-    p_n = np.power(counts_array, 0.75) # word2vec publication research
+    p_n = np.power(counts_array, 0.75)
 
     p_n = p_n / np.sum(p_n)
 
@@ -74,7 +77,12 @@ def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, 
 
 def detect_phrases(tokens: list[str], word_counts: Counter, delta: float = 5.0, threshold: float = 1e-4) -> list[str]:
     """
-    Detecting frequently appearing phrases and merging them
+    Identifies frequent bigrams and merges them into single tokens.
+    :param tokens: List of tokens.
+    :param word_counts: Counter object with word frequencies.
+    :param delta: Discounting factor to prevent forming phrases from very rare words.
+    :param threshold: Significance threshold; higher values result in fewer, more certain phrases.
+    :return: New list of tokens with merged phrases.
     """
     bigram_counts = Counter(zip(tokens[:-1], tokens[1:]))
     
@@ -107,6 +115,14 @@ def detect_phrases(tokens: list[str], word_counts: Counter, delta: float = 5.0, 
     return new_tokens
 
 def subsampling(tokens: list[str], word_counts: Counter, min_count: int = 2, threshold: float = 1e-4) -> list[str]:
+    """
+    Randomly discards frequent words to speed up training and improve the quality of rare word vectors.
+    :param tokens: List of tokens.
+    :param word_counts: Counter object with word frequencies.
+    :param min_count: Words appearing fewer times than this are discarded.
+    :param threshold: Subsampling threshold (usually between 1e-3 and 1e-5).
+    :return: Filtered list of tokens.
+    """
     words_len = len(tokens) # ;)
 
     keep_probs = {}
@@ -128,11 +144,20 @@ def subsampling(tokens: list[str], word_counts: Counter, min_count: int = 2, thr
     return filtered
 
 def build_phrases_multi_pass(tokens: list[str], passes: int = 3, start_threshold: float = 1e-4, delta: float = 5.0) -> list[str]:
+    """
+    Runs phrase detection multiple times to capture longer n-grams.
+    The threshold is lowered each pass to capture progressively more complex phrases.
+    :param tokens: List of input tokens.
+    :param passes: Number of iterations.
+    :param start_threshold: Initial threshold for detect_phrases.
+    :param delta: Delta parameter for detect_phrases.
+    :return: List of tokens after phrase merging.
+    """
     current_tokens = tokens
     current_threshold = start_threshold
 
     for p in range(passes):
-        print(f"Tworzenie fraz - Przebieg {p+1}/{passes} (próg: {current_threshold:.6f})...")
+        # print(f"Pass {p+1}/{passes} (threshold: {current_threshold:.6f})")
         
         current_word_counts = Counter(current_tokens)
         
@@ -146,5 +171,3 @@ def build_phrases_multi_pass(tokens: list[str], passes: int = 3, start_threshold
         current_threshold /= 2.0
 
     return current_tokens
-
-# TODO normalization? for example: cat, cats, and so on as one word. Doesnt seem like a very good idea tho
