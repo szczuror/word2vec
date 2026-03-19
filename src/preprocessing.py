@@ -15,20 +15,6 @@ def clean(text: str) -> list[str]:
     """
     return regex_pattern.sub(' ', text.lower()).split()
 
-def build_vocab(tokens: list[str]) -> tuple[dict[str, int], dict[int, str], Counter]:
-    """
-    Builds vocabulary mappings and counts word frequencies.
-    :param tokens: List of all tokens.
-    :return: A tuple of (word2id, id2word, word_counts).
-    """
-    word_counts = Counter(tokens)
-    words = sorted(list(word_counts.keys()))
-
-    word2id = {word: i for i, word in enumerate(words)}
-    id2word = {i: word for i, word in enumerate(words)}
-
-    return word2id, id2word, word_counts
-
 def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2):
     """
     Generator for (center_word, context_id) pairs using a dynamic window size.
@@ -51,30 +37,6 @@ def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int 
         for j in range(start, end):
             if i != j:
                 yield center_id, word2id[tokens[j]]
-
-
-def get_negative_sampling_distribution(word_counts: Counter, word2id: dict[str, int]) -> np.ndarray:
-    """
-    Calculates the probability distribution for Negative Sampling.
-    Uses the formula P(w) = count(w)^0.75 / sum(count^0.75) which helps boost rare words.
-    :param word_counts: Counter object with word frequencies.
-    :param word2id: Dictionary mapping words to IDs.
-    :return: Numpy array of probabilities for each word ID.
-    """
-    vocab_size = len(word2id)
-
-    counts_array = np.zeros(vocab_size)
-
-    for word, count in word_counts.items():
-        if word in word2id:
-            word_id = word2id[word]
-            counts_array[word_id] = count
-
-    p_n = np.power(counts_array, 0.75)
-
-    p_n = p_n / np.sum(p_n)
-
-    return p_n
 
 def detect_phrases(tokens: list[str], word_counts: Counter, delta: float = 5.0, threshold: float = 1e-4) -> list[str]:
     """
@@ -172,3 +134,65 @@ def build_phrases_multi_pass(tokens: list[str], passes: int = 3, start_threshold
         current_threshold /= 2.0
 
     return current_tokens
+
+class Vocabulary:
+    """
+    Holds word2id mappings, counts, and the negative sampling distribution.
+    Build once from a final (phrase-merged, subsampled) token list.
+    """
+
+    def __init__(self, min_count: int = 2):
+        self.min_count = min_count
+        self.word2id: dict[str, int] = {}
+        self.id2word: dict[int, str] = {}
+        self.word_counts: Counter = Counter()
+        self.neg_sampling_probs: np.ndarray | None = None
+
+    def build(self, tokens: list[str]) -> "Vocabulary":
+        """
+        Builds vocabulary mappings and counts word frequencies.
+        """
+        counts = Counter(tokens)
+        words = sorted(w for w, c in counts.items() if c >= self.min_count)
+        self.word_counts = Counter({w: counts[w] for w in words})
+        self.word2id = {w: i for i, w in enumerate(words)}
+        self.id2word = {i: w for i, w in enumerate(words)}
+        self.neg_sampling_probs = self._compute_neg_probs()
+        return self
+
+    def _compute_neg_probs(self) -> np.ndarray:
+        """
+        Calculates the probability distribution for Negative Sampling.
+        Uses the formula P(w) = count(w)^0.75 / sum(count^0.75) which helps boost rare words.
+        """
+        counts = np.array([self.word_counts[self.id2word[i]] for i in range(len(self))])
+        probs = np.power(counts, 0.75)
+        return probs / probs.sum()
+
+    def __len__(self) -> int:
+        return len(self.word2id)
+
+    def __contains__(self, word: str) -> bool:
+        return word in self.word2id
+
+
+def preprocess(raw_text: str,
+               min_count: int = 2,
+               window_size: int = 5,
+               phrase_passes: int = 3,
+               subsample_threshold: float = 1e-4) -> tuple["Vocabulary", list[tuple[int, int]]]:
+    """
+    Full preprocessing pipeline:
+    clean -> phrase detection -> subsampling -> vocab -> skipgram pairs
+    Returns (vocab, list_of_(center_id, context_id)_pairs).
+    """
+    tokens = clean(raw_text)
+    tokens = build_phrases_multi_pass(tokens, passes=phrase_passes)
+
+    vocab = Vocabulary(min_count=min_count).build(tokens)
+
+    tokens = subsampling(tokens, vocab.word_counts, threshold=subsample_threshold, min_count=min_count)
+
+    pairs = list(skipgram_pairs(tokens, vocab.word2id, window_size))
+
+    return vocab, pairs
