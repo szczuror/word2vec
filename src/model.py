@@ -62,26 +62,18 @@ class Word2Vec:
 
         return samples
 
-    def forward(self, center_ids: np.ndarray, context_ids: np.ndarray, neg_ids: np.ndarray
-                ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def forward(self, v_w: np.ndarray, u_c: np.ndarray, u_neg: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
-        Forward pass for center and context plus k negatives.
-        :param center_ids: Array of indices for center words.
-        :param context_ids: Array of indices for contex words.
-        :param neg_ids: Array of indices for negative samples.
-        :return:
-            v_w: embeddings of center words
-            sig_pos: sigmoid of dot product for positive pairs
-            sig_neg: sigmoid of dot product for negative samples
+        Forward pass using pre-fetched embeddings.
+        :param v_w: Center word embeddings
+        :param u_c: Context word embeddings
+        :param u_neg: Negative sample embeddings
+        :return: sig_pos, sig_neg
         """
-        v_w = self.W[center_ids]
-        u_c = self.W_[context_ids]
-        u_neg = self.W_[neg_ids]
-
         sig_pos = self._sigmoid(np.einsum('bd,bd->b', v_w, u_c))
         sig_neg = self._sigmoid(np.einsum('bd,bkd->bk', v_w, u_neg))
 
-        return v_w, sig_pos, sig_neg
+        return sig_pos, sig_neg
 
     @staticmethod
     def loss(sig_pos: np.ndarray, sig_neg: np.ndarray) -> float:
@@ -114,7 +106,7 @@ class Word2Vec:
         e_pos = sig_pos - 1
         e_neg = sig_neg
 
-        grad_u_c = np.einsum('b,bd->bd', e_pos, u_c)
+        grad_u_c = np.einsum('b,bd->bd', e_pos, v_w)
         grad_u_neg = np.einsum('bk,bd->bkd', e_neg, v_w)
         grad_v_w = (np.einsum('b,bd->bd', e_pos, u_c)
                     + np.einsum('bk,bkd->bd', e_neg, u_neg))
@@ -141,3 +133,29 @@ class Word2Vec:
         flat_neg_ids = neg_ids.reshape(-1)
         flat_neg_grads = grad_u_neg.reshape(-1, self.embedding_dim)
         np.add.at(self.W_, flat_neg_ids, -lr * flat_neg_grads)
+
+    def train(self, center_ids: np.ndarray, context_ids: np.ndarray, lr: float) -> float:
+        """
+        Train the model for each three embedding matrices.
+
+        :param center_ids: Center word indices
+        :param context_ids: True context word indices
+        :param lr: Learning rate
+        :return: Mean loss as float over the batch
+        """
+
+        neg_ids = self._sample_negatives(center_ids, context_ids)
+
+        v_w = self.W[center_ids]
+        u_c = self.W_[context_ids]
+        u_neg = self.W_[neg_ids]
+
+        sig_pos, sig_neg = self.forward(v_w, u_c, u_neg)
+
+        curr_loss = self.loss(sig_pos, sig_neg)
+
+        grad_v_w, grad_u_c, grad_u_neg = self.backward(v_w, u_c, u_neg,sig_pos, sig_neg)
+
+        self.update(center_ids, context_ids, neg_ids, grad_v_w, grad_u_c, grad_u_neg, lr)
+
+        return curr_loss
