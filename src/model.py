@@ -5,7 +5,7 @@ class Word2Vec:
     """
     Word2Vec model
     """
-    def __init__(self, vocab: Vocabulary, embedding_dim: int = 100, n_negatives: int = 5):
+    def __init__(self, vocab: Vocabulary, embedding_dim: int = 100, n_negatives: int = 5, max_neg_resample_iters: int = 10):
         """
         :param vocab: Vocabulary object (provides size and neg sampling probs).
         :param embedding_dim: Dimensionality of word vectors.
@@ -14,6 +14,7 @@ class Word2Vec:
         self.vocab = vocab
         self.embedding_dim = embedding_dim
         self.n_negatives = n_negatives
+        self.max_neg_resample_iters = max_neg_resample_iters
 
         vocab_size = len(vocab)
 
@@ -24,6 +25,8 @@ class Word2Vec:
     def _sigmoid(x : np.ndarray) -> np.ndarray:
         """
         Sigmoid function with clipping to avoid overflow in exp(x).
+        :param x: Input array.
+        :return: Array of sigmoid values.
         """
         x = np.clip(x, -500, 500)
         return 1.0 / (1.0 + np.exp(-x))
@@ -33,10 +36,9 @@ class Word2Vec:
         Draw k negative samples from the noise distribution P^(3/4).
         Resamples until we have exactly k samples that are neither the
         true context word nor the center word.
-        :param context_id: ID of the true context word (excluded from negatives).
-        :param center_id: ID of the center word (excluded from negatives).
-        :return: Array of k negative sample IDs
-
+        :param context_ids: IDs of true context words (excluded from negatives).
+        :param center_ids: IDs of center words (excluded from negatives).
+        :return: Array of negative sample IDs
         """
         samples = np.random.choice(
             len(self.vocab),
@@ -44,7 +46,7 @@ class Word2Vec:
             p = self.vocab.neg_sampling_probs
         )
 
-        while True:
+        for _ in range(self.max_neg_resample_iters):
             collisions = (
             (samples == center_ids[:, None]) | (samples == context_ids[:, None])
             )
@@ -62,7 +64,16 @@ class Word2Vec:
 
     def forward(self, center_ids: np.ndarray, context_ids: np.ndarray, neg_ids: np.ndarray
                 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-
+        """
+        Forward pass for center and context plus k negatives.
+        :param center_ids: Array of indices for center words.
+        :param context_ids: Array of indices for contex words.
+        :param neg_ids: Array of indices for negative samples.
+        :return:
+            v_w: embeddings of center words
+            sig_pos: sigmoid of dot product for positive pairs
+            sig_neg: sigmoid of dot product for negative samples
+        """
         v_w = self.W[center_ids]
         u_c = self.W_[context_ids]
         u_neg = self.W_[neg_ids]
@@ -71,3 +82,62 @@ class Word2Vec:
         sig_neg = self._sigmoid(np.einsum('bd,bkd->bk', v_w, u_neg))
 
         return v_w, sig_pos, sig_neg
+
+    @staticmethod
+    def loss(sig_pos: np.ndarray, sig_neg: np.ndarray) -> float:
+        """
+        Compute the negative sampling loss for a batch of center-context pairs.
+
+        :param sig_pos: Sigmoid values for positive pairs
+        :param sig_neg: Sigmoid values for negative samples
+        :return: Mean loss as float
+        """
+        eps = 1e-15
+        pos_loss = -np.log(sig_pos + eps)
+        neg_loss = -np.sum(np.log(1 - sig_neg + eps), axis=1)
+
+        return float(np.mean(pos_loss + neg_loss))
+
+    @staticmethod
+    def backward(v_w: np.ndarray, u_c: np.ndarray, u_neg: np.ndarray,
+             sig_pos: np.ndarray, sig_neg: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Compute gradients for skip-gram with negative sampling.
+
+        :param v_w: Center word embeddings
+        :param u_c: True context word embeddings
+        :param u_neg: Negative word embeddings
+        :param sig_pos: Sigmoid of dot product for positive pairs
+        :param sig_neg: Sigmoid of dot product for negative pairs
+        :return: Tuple of gradients (grad_v_w, grad_u_c, grad_u_neg)
+        """
+        e_pos = sig_pos - 1
+        e_neg = sig_neg
+
+        grad_u_c = np.einsum('b,bd->bd', e_pos, u_c)
+        grad_u_neg = np.einsum('bk,bd->bkd', e_neg, v_w)
+        grad_v_w = (np.einsum('b,bd->bd', e_pos, u_c)
+                    + np.einsum('bk,bkd->bd', e_neg, u_neg))
+
+        return grad_v_w, grad_u_c, grad_u_neg
+
+    def update(self, center_ids: np.ndarray, context_ids: np.ndarray, neg_ids: np.ndarray,
+               grad_v_w: np.ndarray, grad_u_c: np.ndarray, grad_u_neg: np.ndarray,
+               lr: float) -> None:
+        """
+        Update parameters for all three embedding matrices.
+
+        :param center_ids: Center word indices
+        :param context_ids: True context word indices
+        :param neg_ids: Negative sample indices
+        :param grad_v_w: Gradients for center embeddings
+        :param grad_u_c: Gradients for context embeddings
+        :param grad_u_neg: Gradients for negative embeddings
+        :param lr: Learning rate
+        """
+        np.add.at(self.W, center_ids, -lr * grad_v_w)
+        np.add.at(self.W_, context_ids, -lr * grad_u_c)
+
+        flat_neg_ids = neg_ids.reshape(-1)
+        flat_neg_grads = grad_u_neg.reshape(-1, self.embedding_dim)
+        np.add.at(self.W_, flat_neg_ids, -lr * flat_neg_grads)
