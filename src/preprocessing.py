@@ -180,7 +180,7 @@ def preprocess(raw_text: str,
                min_count: int = 2,
                window_size: int = 5,
                phrase_passes: int = 3,
-               subsample_threshold: float = 1e-4) -> tuple["Vocabulary", list[tuple[int, int]]]:
+               subsample_threshold: float = 1e-4) -> tuple["Vocabulary", list[str]]:
     """
     Full preprocessing pipeline:
     clean -> phrase detection -> subsampling -> vocab -> skipgram pairs
@@ -193,6 +193,4 @@ def preprocess(raw_text: str,
 
     tokens = subsampling(tokens, vocab.word_counts, threshold=subsample_threshold, min_count=min_count)
 
-    pairs = list(skipgram_pairs(tokens, vocab.word2id, window_size))
-
-    return vocab, pairs
+    return vocab, tokens
