@@ -159,3 +159,31 @@ class Word2Vec:
         self.update(center_ids, context_ids, neg_ids, grad_v_w, grad_u_c, grad_u_neg, lr)
 
         return curr_loss
+
+    def get_embedding(self, word: str) -> np.ndarray:
+        """
+        Return the trained vector for a word from the input embedding matrix W.
+        :param word: Input word
+        :return: Embedding vector
+        """
+        if word not in self.vocab:
+            raise KeyError(f"'{word}' not in vocabulary.")
+        return self.W[self.vocab.word2id[word]]
+
+    def save(self, path: str) -> None:
+        """
+        Save both embedding matrices to a .npz file
+        :param path: Destination path
+        """
+        np.savez(path, W = self.W, W_ = self.W_)
+
+    def load(self, path: str) -> "Word2Vec":
+        """
+        Load embedding matrices from a .npz file
+        :param path: Path to the .npz file
+        :return: self
+        """
+        data = np.load(path)
+        self.W = data["W"]
+        self.W_ = data["W_"]
+        return self
