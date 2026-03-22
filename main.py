@@ -20,6 +20,8 @@ def main():
     parser_train.add_argument("--min_count", type=int, default=5)
     parser_train.add_argument("--subsample_threshold", type=float, default=1e-4)
     parser_train.add_argument("--save", type=str, default="./embeddings/model.npz", dest="save_path")
+    parser_train.add_argument("--phrase_passes", type=int, default=0,
+                              help="Number of bigram phrase-detection passes (0 = disabled)")
 
     parser_eval = subparsers.add_parser("evaluate", help="Evaluate the model")
     parser_eval.add_argument("--model_path", type=str, default="./embeddings/model_epoch5.npz")
@@ -44,6 +46,7 @@ def main():
             min_count=args.min_count,
             subsample_threshold=args.subsample_threshold,
             save_path=args.save_path,
+            phrase_passes=args.phrase_passes
         )
 
     elif args.command == "evaluate":
