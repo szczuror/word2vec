@@ -1,5 +1,5 @@
 import numpy as np
-from preprocessing import Vocabulary
+from src.preprocessing import Vocabulary
 
 class Word2Vec:
     """

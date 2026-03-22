@@ -7,8 +7,8 @@ import urllib.request
 
 import numpy as np
 
-from preprocessing import preprocess, skipgram_pairs
-from model import Word2Vec
+from src.preprocessing import preprocess, skipgram_pairs
+from src.model import Word2Vec
 
 DATASET_URL = "http://mattmahoney.net/dc/text8.zip"
 DATASET_ZIP = "text8.zip"
@@ -75,7 +75,7 @@ def train(
     min_count: int = 5,
     phrase_passes: int = 0,
     subsample_threshold: float = 1e-4,
-    save_path: str = "../embeddings/model.npz",
+    save_path: str = "./embeddings/model.npz",
     log_every: int = 100_000,
 ) -> "Word2Vec":
     """
@@ -182,58 +182,58 @@ def train(
 
     return model
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description = "Train Word2Vec."
-    )
-    parser.add_argument(
-        "--data",
-        type = str,
-        default = None,
-        help = "Path to a plain-text corpus. If omitted, text8 is downloaded automatically.",
-    )
-    parser.add_argument(
-        "--max_chars",
-        type = int,
-        default = None,
-        help = "Read at most this many characters from the corpus.",
-    )
-    parser.add_argument("--epochs", type = int, default = 5)
-    parser.add_argument("--embedding_dim", type = int, default = 100)
-    parser.add_argument("--window_size", type = int, default = 5)
-    parser.add_argument("--n_negatives", type = int, default = 5)
-    parser.add_argument("--batch_size", type = int, default = 512)
-    parser.add_argument("--lr", type = float, default = 0.025, dest = "learning_rate")
-    parser.add_argument("--min_lr", type = float, default = 0.0001)
-    parser.add_argument("--min_count", type = int, default = 5)
-    parser.add_argument("--subsample_threshold", type = float, default = 1e-4)
-    parser.add_argument(
-        "--save",
-        type = str,
-        default = "../embeddings/model.npz",
-        dest = "save_path",
-        help = "Path to save the trained embeddings.",
-    )
-    args = parser.parse_args()
-
-    data_path = args.data if args.data else download_text8()
-
-    with open(data_path, "r", encoding="utf-8") as fh:
-        text = fh.read(args.max_chars) if args.max_chars else fh.read()
-
-    train(
-        text = text,
-        epochs = args.epochs,
-        embedding_dim=  args.embedding_dim,
-        window_size = args.window_size,
-        n_negatives = args.n_negatives,
-        batch_size = args.batch_size,
-        learning_rate = args.learning_rate,
-        min_lr = args.min_lr,
-        min_count = args.min_count,
-        subsample_threshold = args.subsample_threshold,
-        save_path = args.save_path,
-    )
-
-if __name__ == "__main__":
-    main()
+# def main() -> None:
+#     parser = argparse.ArgumentParser(
+#         description = "Train Word2Vec."
+#     )
+#     parser.add_argument(
+#         "--data",
+#         type = str,
+#         default = None,
+#         help = "Path to a plain-text corpus. If omitted, text8 is downloaded automatically.",
+#     )
+#     parser.add_argument(
+#         "--max_chars",
+#         type = int,
+#         default = None,
+#         help = "Read at most this many characters from the corpus.",
+#     )
+#     parser.add_argument("--epochs", type = int, default = 5)
+#     parser.add_argument("--embedding_dim", type = int, default = 100)
+#     parser.add_argument("--window_size", type = int, default = 5)
+#     parser.add_argument("--n_negatives", type = int, default = 5)
+#     parser.add_argument("--batch_size", type = int, default = 512)
+#     parser.add_argument("--lr", type = float, default = 0.025, dest = "learning_rate")
+#     parser.add_argument("--min_lr", type = float, default = 0.0001)
+#     parser.add_argument("--min_count", type = int, default = 5)
+#     parser.add_argument("--subsample_threshold", type = float, default = 1e-4)
+#     parser.add_argument(
+#         "--save",
+#         type = str,
+#         default = "./embeddings/model.npz",
+#         dest = "save_path",
+#         help = "Path to save the trained embeddings.",
+#     )
+#     args = parser.parse_args()
+#
+#     data_path = args.data if args.data else download_text8()
+#
+#     with open(data_path, "r", encoding="utf-8") as fh:
+#         text = fh.read(args.max_chars) if args.max_chars else fh.read()
+#
+#     train(
+#         text = text,
+#         epochs = args.epochs,
+#         embedding_dim=  args.embedding_dim,
+#         window_size = args.window_size,
+#         n_negatives = args.n_negatives,
+#         batch_size = args.batch_size,
+#         learning_rate = args.learning_rate,
+#         min_lr = args.min_lr,
+#         min_count = args.min_count,
+#         subsample_threshold = args.subsample_threshold,
+#         save_path = args.save_path,
+#     )
+#
+# if __name__ == "__main__":
+#     main()
