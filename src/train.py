@@ -1,7 +1,6 @@
 import os
 import pickle
 import time
-import argparse
 import zipfile
 import urllib.request
 
@@ -63,6 +62,45 @@ def iter_batches(center_ids: np.ndarray, context_ids: np.ndarray, batch_size: in
         idx = indices[start : start + batch_size]
         yield center_ids[idx], context_ids[idx]
 
+
+def iter_batches_streaming(pair_generator, batch_size: int, buffer_size: int = 1_000_000):
+    """
+    Consumes a generator of pairs, buffers them, shuffles the buffer,
+    and yields numpy arrays of batch_size.
+    """
+    buffer_centers = []
+    buffer_contexts = []
+
+    for center_id, context_id in pair_generator:
+        buffer_centers.append(center_id)
+        buffer_contexts.append(context_id)
+
+        # Once the buffer is full, process and yield it
+        if len(buffer_centers) >= buffer_size:
+            centers_arr = np.array(buffer_centers, dtype=np.int32)
+            contexts_arr = np.array(buffer_contexts, dtype=np.int32)
+
+            # Shuffle the buffer
+            indices = np.random.permutation(len(centers_arr))
+            centers_arr = centers_arr[indices]
+            contexts_arr = contexts_arr[indices]
+
+            for i in range(0, len(centers_arr), batch_size):
+                yield centers_arr[i: i + batch_size], contexts_arr[i: i + batch_size]
+
+            buffer_centers.clear()
+            buffer_contexts.clear()
+
+    if buffer_centers:
+        centers_arr = np.array(buffer_centers, dtype=np.int32)
+        contexts_arr = np.array(buffer_contexts, dtype=np.int32)
+        indices = np.random.permutation(len(centers_arr))
+        centers_arr = centers_arr[indices]
+        contexts_arr = contexts_arr[indices]
+
+        for i in range(0, len(centers_arr), batch_size):
+            yield centers_arr[i: i + batch_size], contexts_arr[i: i + batch_size]
+
 def train(
     text: str,
     epochs: int = 5,
@@ -108,29 +146,27 @@ def train(
         f"Tokens after subsampling: {len(tokens):,}"
     )
 
-    print("Building skip-gram pairs")
+    print("Preparing streaming training...")
     token_arr = np.array(tokens)
-    pairs = list(skipgram_pairs(token_arr, vocab.word2id, window_size = window_size))
 
-    center_ids = np.array([p[0] for p in pairs], dtype = np.int32)
-    context_ids = np.array([p[1] for p in pairs], dtype = np.int32)
-    n_pairs = len(pairs)
-    print(f"Skip-gram pairs: {n_pairs:,}")
+    estimated_n_pairs = len(token_arr) * window_size
+    print(f"Estimated skip-gram pairs per epoch: ~{estimated_n_pairs:,}")
 
     model = Word2Vec(vocab, embedding_dim = embedding_dim, n_negatives = n_negatives)
 
     if save_path:
         save_dir = os.path.dirname(save_path) or "."
-        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_dir, exist_ok = True)
         vocab_path = os.path.join(save_dir, "vocab.pkl")
         with open(vocab_path, "wb") as f:
             pickle.dump(vocab, f)
         print(f"Vocabulary saved to {vocab_path}")
 
-    steps_per_epoch = (n_pairs + batch_size - 1) // batch_size
+    steps_per_epoch = estimated_n_pairs // batch_size
     total_steps = epochs * steps_per_epoch
     step = 0
     global_step = 0
+
     for epoch in range(1, epochs + 1):
         epoch_loss = 0.0
         epoch_pairs = 0
@@ -139,8 +175,10 @@ def train(
         log_loss = 0.0
         log_pairs = 0
 
-        for center_batch, context_batch in iter_batches(
-            center_ids, context_ids, batch_size
+        pair_generator = skipgram_pairs(token_arr, vocab.word2id, window_size = window_size)
+
+        for center_batch, context_batch in iter_batches_streaming(
+                pair_generator, batch_size, buffer_size=1_000_000
         ):
             lr = max(min_lr, learning_rate * (1.0 - step / total_steps))
 
@@ -181,59 +219,3 @@ def train(
             print(f"Saved checkpoint: {epoch_save_path}\n")
 
     return model
-
-# def main() -> None:
-#     parser = argparse.ArgumentParser(
-#         description = "Train Word2Vec."
-#     )
-#     parser.add_argument(
-#         "--data",
-#         type = str,
-#         default = None,
-#         help = "Path to a plain-text corpus. If omitted, text8 is downloaded automatically.",
-#     )
-#     parser.add_argument(
-#         "--max_chars",
-#         type = int,
-#         default = None,
-#         help = "Read at most this many characters from the corpus.",
-#     )
-#     parser.add_argument("--epochs", type = int, default = 5)
-#     parser.add_argument("--embedding_dim", type = int, default = 100)
-#     parser.add_argument("--window_size", type = int, default = 5)
-#     parser.add_argument("--n_negatives", type = int, default = 5)
-#     parser.add_argument("--batch_size", type = int, default = 512)
-#     parser.add_argument("--lr", type = float, default = 0.025, dest = "learning_rate")
-#     parser.add_argument("--min_lr", type = float, default = 0.0001)
-#     parser.add_argument("--min_count", type = int, default = 5)
-#     parser.add_argument("--subsample_threshold", type = float, default = 1e-4)
-#     parser.add_argument(
-#         "--save",
-#         type = str,
-#         default = "./embeddings/model.npz",
-#         dest = "save_path",
-#         help = "Path to save the trained embeddings.",
-#     )
-#     args = parser.parse_args()
-#
-#     data_path = args.data if args.data else download_text8()
-#
-#     with open(data_path, "r", encoding="utf-8") as fh:
-#         text = fh.read(args.max_chars) if args.max_chars else fh.read()
-#
-#     train(
-#         text = text,
-#         epochs = args.epochs,
-#         embedding_dim=  args.embedding_dim,
-#         window_size = args.window_size,
-#         n_negatives = args.n_negatives,
-#         batch_size = args.batch_size,
-#         learning_rate = args.learning_rate,
-#         min_lr = args.min_lr,
-#         min_count = args.min_count,
-#         subsample_threshold = args.subsample_threshold,
-#         save_path = args.save_path,
-#     )
-#
-# if __name__ == "__main__":
-#     main()

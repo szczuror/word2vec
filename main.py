@@ -21,7 +21,7 @@ def main():
     parser_train.add_argument("--subsample_threshold", type=float, default=1e-4)
     parser_train.add_argument("--save", type=str, default="./embeddings/model.npz", dest="save_path")
 
-    parser_eval = subparsers.add_parser("evaluate", help="Ewaluuj wytrenowany model")
+    parser_eval = subparsers.add_parser("evaluate", help="Evaluate the model")
     parser_eval.add_argument("--model_path", type=str, default="./embeddings/model_epoch5.npz")
 
     args = parser.parse_args()
