@@ -2,10 +2,6 @@ import re
 import numpy as np
 from collections import Counter
 
-# tokenization, text cleaning, vocab building
-# dataset I chose already has all small letters and no interpunction signs, however, I will provide a fucntion to do so
-# in case i want to use another dataset
-
 regex_pattern = re.compile(r"[^a-z'\s]")
 def clean(text: str) -> list[str]:
     """
@@ -15,7 +11,7 @@ def clean(text: str) -> list[str]:
     """
     return regex_pattern.sub(' ', text.lower()).split()
 
-def skipgram_pairs(tokens: list[str], word2id: dict[str, int], window_size: int = 2):
+def skipgram_pairs(tokens: np.ndarray, word2id: dict[str, int], window_size: int = 2):
     """
     Generator for (center_word, context_id) pairs using a dynamic window size.
     :param tokens: List of tokens.
@@ -120,8 +116,6 @@ def build_phrases_multi_pass(tokens: list[str], passes: int = 3, start_threshold
     current_threshold = start_threshold
 
     for p in range(passes):
-        # print(f"Pass {p+1}/{passes} (threshold: {current_threshold:.6f})")
-        
         current_word_counts = Counter(current_tokens)
         
         current_tokens = detect_phrases(
@@ -178,8 +172,7 @@ class Vocabulary:
 
 def preprocess(raw_text: str,
                min_count: int = 2,
-               window_size: int = 5,
-               phrase_passes: int = 3,
+               phrase_passes: int = 2,
                subsample_threshold: float = 1e-4) -> tuple["Vocabulary", list[str]]:
     """
     Full preprocessing pipeline:

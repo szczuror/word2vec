@@ -134,7 +134,7 @@ class Word2Vec:
         flat_neg_grads = grad_u_neg.reshape(-1, self.embedding_dim)
         np.add.at(self.W_, flat_neg_ids, -lr * flat_neg_grads)
 
-    def train(self, center_ids: np.ndarray, context_ids: np.ndarray, lr: float) -> float:
+    def train_step(self, center_ids: np.ndarray, context_ids: np.ndarray, lr: float) -> float:
         """
         Train the model for each three embedding matrices.
 
@@ -144,7 +144,7 @@ class Word2Vec:
         :return: Mean loss as float over the batch
         """
 
-        neg_ids = self._sample_negatives(center_ids, context_ids)
+        neg_ids = self._sample_negatives(context_ids, center_ids)
 
         v_w = self.W[center_ids]
         u_c = self.W_[context_ids]
@@ -159,16 +159,6 @@ class Word2Vec:
         self.update(center_ids, context_ids, neg_ids, grad_v_w, grad_u_c, grad_u_neg, lr)
 
         return curr_loss
-
-    def get_embedding(self, word: str) -> np.ndarray:
-        """
-        Return the trained vector for a word from the input embedding matrix W.
-        :param word: Input word
-        :return: Embedding vector
-        """
-        if word not in self.vocab:
-            raise KeyError(f"'{word}' not in vocabulary.")
-        return self.W[self.vocab.word2id[word]]
 
     def save(self, path: str) -> None:
         """
@@ -186,4 +176,5 @@ class Word2Vec:
         data = np.load(path)
         self.W = data["W"]
         self.W_ = data["W_"]
+        self.embedding_dim = self.W.shape[1]
         return self
