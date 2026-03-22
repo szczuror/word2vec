@@ -1,12 +1,12 @@
 # word2vec
 
-Pure-NumPy implementation of word2vec using the kip-gram with negative sampling variant.
+Pure-NumPy implementation of word2vec using the skip-gram with negative sampling variant.
 
 ---
 
 ## Results
 
-Evaluated on the [Google word analogy benchmark](https://code.google.com/archive/p/word2vec/). The model was trained on the [text8](http://mattmahoney.net/dc/text8.zip) corpus with default hyperparameters (see table below).
+Evaluated on the [Google word analogy benchmark](https://code.google.com/archive/p/word2vec/). The model was trained on the [text8](http://mattmahoney.net/dc/text8.zip) corpus with default hyperparameters but 15 epochs (see table below).
 
 | Category                    | Acc       | Correct  | Total     | Skipped  |
 |-----------------------------|-----------|----------|-----------|----------|
@@ -102,16 +102,16 @@ The benchmark file is downloaded automatically on first run.
 
 ## Hyperparameters
 
-| Parameter              | Default | Notes                                                                 |
-|------------------------|---------|-----------------------------------------------------------------------|
-| `embedding_dim`        | 100     | Vector dimensionality                                                 |
-| `window_size`          | 5       | Maximum context-window radius (actual radius sampled in [1, window_size]) |
-| `n_negatives`          | 5       | Negative samples per positive pair; 5–20 recommended for large corpora |
-| `batch_size`           | 512     | Skip-gram pairs per gradient step                                     |
-| `learning_rate`        | 0.025   | Initial LR; linearly decayed to `min_lr` over training               |
-| `min_lr`               | 0.0001  | Minimum learning rate                                                 |
-| `min_count`            | 5       | Words below this frequency are excluded from the vocabulary           |
-| `subsample_threshold`  | 1e-4    | Controls how aggressively frequent words are discarded                |
+| Parameter             | Default | Notes                                                                     |
+|-----------------------|---------|---------------------------------------------------------------------------|
+| `embedding_dim`       | 100     | Vector dimensionality                                                     |
+| `window_size`         | 5       | Maximum context-window radius (actual radius sampled in [1, window_size]) |
+| `n_negatives`         | 5       | Negative samples per positive pair; 5–20 recommended for large corpora    |
+| `batch_size`          | 512     | Skip-gram pairs per gradient step                                         |
+| `learning_rate`       | 0.025   | Initial LR; linearly decayed to `min_lr` over training                    |
+| `min_lr`              | 0.0001  | Minimum learning rate                                                     |
+| `min_count`           | 5       | Words below this frequency are excluded from the vocabulary               |
+| `subsample_threshold` | 1e-4    | Controls how aggressively frequent words are discarded                    |
 
 Based on:
 
