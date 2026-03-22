@@ -105,14 +105,13 @@ class Word2Vec:
         """
         e_pos = sig_pos - 1
         e_neg = sig_neg
-        batch_size = v_w.shape[0]
 
         grad_u_c = np.einsum('b,bd->bd', e_pos, v_w)
         grad_u_neg = np.einsum('bk,bd->bkd', e_neg, v_w)
         grad_v_w = (np.einsum('b,bd->bd', e_pos, u_c)
                     + np.einsum('bk,bkd->bd', e_neg, u_neg))
 
-        return grad_v_w / batch_size, grad_u_c / batch_size, grad_u_neg / batch_size
+        return grad_v_w, grad_u_c, grad_u_neg
 
     def update(self, center_ids: np.ndarray, context_ids: np.ndarray, neg_ids: np.ndarray,
                grad_v_w: np.ndarray, grad_u_c: np.ndarray, grad_u_neg: np.ndarray,
