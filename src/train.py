@@ -13,6 +13,18 @@ DATASET_URL = "http://mattmahoney.net/dc/text8.zip"
 DATASET_ZIP = "text8.zip"
 DATASET_FILE = "text8"
 
+
+class WordCounter:
+    """Shared, mutable word-position counter passed into ``skipgram_pairs``.
+
+    Tracks the cumulative number of center tokens consumed across all epochs so
+    the training loop can drive LR decay / progress off words processed, the way
+    Mikolov's word2vec.c does (``word_count_actual``).
+    """
+
+    def __init__(self):
+        self.words = 0
+
 def download_text8(save_dir: str = "../data") -> str:
     """
     Download and extract the text8 dataset if it is not already present.
@@ -109,7 +121,7 @@ def train(
     n_negatives: int = 5,
     batch_size: int = 512,
     learning_rate: float = 0.025,
-    min_lr: float = 0.0001,
+    min_lr: float | None = None,
     min_count: int = 5,
     phrase_passes: int = 0,
     subsample_threshold: float = 1e-4,
@@ -126,7 +138,8 @@ def train(
     :param n_negatives: Number of negative samples per positive pair.
     :param batch_size: Mini-batch size (number of skip-gram pairs).
     :param learning_rate: Initial learning rate.
-    :param min_lr: Minimum learning rate; decay stops here.
+    :param min_lr: Minimum learning rate; decay stops here. If None, defaults to
+        ``learning_rate * 1e-4`` (Mikolov's ``starting_alpha * 0.0001``).
     :param min_count: Words appearing fewer times are discarded from vocab.
     :param phrase_passes: How many rounds of bigram phrase detection to run.
     :param subsample_threshold: Subsampling threshold.
@@ -149,8 +162,14 @@ def train(
     print("Preparing streaming training...")
     token_arr = np.array(tokens)
 
-    estimated_n_pairs = len(token_arr) * window_size
-    print(f"Estimated skip-gram pairs per epoch: ~{estimated_n_pairs:,}")
+    train_words = len(token_arr)
+    total_train_words = epochs * train_words
+    print(
+        f"Training words per epoch: {train_words:,}  |  "
+        f"total ({epochs} epochs): {total_train_words:,}"
+    )
+
+    lr_floor = min_lr if min_lr is not None else learning_rate * 1e-4
 
     model = Word2Vec(vocab, embedding_dim = embedding_dim, n_negatives = n_negatives)
 
@@ -162,10 +181,8 @@ def train(
             pickle.dump(vocab, f)
         print(f"Vocabulary saved to {vocab_path}")
 
-    steps_per_epoch = estimated_n_pairs // batch_size
-    total_steps = epochs * steps_per_epoch
-    step = 0
-    global_step = 0
+    counter = WordCounter()
+    global_pairs = 0
 
     for epoch in range(1, epochs + 1):
         epoch_loss = 0.0
@@ -175,12 +192,14 @@ def train(
         log_loss = 0.0
         log_pairs = 0
 
-        pair_generator = skipgram_pairs(token_arr, vocab.word2id, window_size = window_size)
+        pair_generator = skipgram_pairs(
+            token_arr, vocab.word2id, window_size = window_size, counter = counter
+        )
 
         for center_batch, context_batch in iter_batches_streaming(
                 pair_generator, batch_size, buffer_size=1_000_000
         ):
-            lr = max(min_lr, learning_rate * (1.0 - step / total_steps))
+            lr = max(lr_floor, learning_rate * (1.0 - counter.words / (total_train_words + 1)))
 
             loss = model.train_step(center_batch, context_batch, lr)
             n  = len(center_batch)
@@ -189,13 +208,12 @@ def train(
             log_loss += loss * n
             log_pairs += n
 
-            step += 1
-            global_step += len(center_batch)
-            if global_step % log_every < batch_size:
+            global_pairs += n
+            if global_pairs % log_every < batch_size:
                 avg_log_loss = log_loss / log_pairs
-                progress = 100 * step / total_steps
+                progress = 100.0 * counter.words / total_train_words
                 print(
-                    f"  [{progress:5.1f}%] step={step * batch_size:_}  "
+                    f"  [{progress:5.1f}%] words={counter.words:_}  "
                     f"loss={avg_log_loss:.4f}  lr={lr:.6f}"
                 )
                 log_loss = 0.0

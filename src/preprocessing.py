@@ -11,18 +11,23 @@ def clean(text: str) -> list[str]:
     """
     return regex_pattern.sub(' ', text.lower()).split()
 
-def skipgram_pairs(tokens: np.ndarray, word2id: dict[str, int], window_size: int = 2):
+def skipgram_pairs(tokens: np.ndarray, word2id: dict[str, int], window_size: int = 2, counter=None):
     """
     Generator for (center_word, context_id) pairs using a dynamic window size.
     :param tokens: List of tokens.
     :param word2id: Dictionary mapping words to their IDs.
     :param window_size: Maximum radius of the context window.
+    :param counter: Optional mutable holder with a ``.words`` attribute; incremented
+        once per center position so callers can track training progress in words
+        (see ``WordCounter`` in ``train.py``).
     """
     n = len(tokens)
 
     dynamic_windows = np.random.randint(1, window_size + 1, size = n)
 
     for i, center in enumerate(tokens):
+        if counter is not None:
+            counter.words += 1
         if center not in word2id:
             continue
         window = dynamic_windows[i]

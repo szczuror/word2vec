@@ -16,7 +16,8 @@ def main():
     parser_train.add_argument("--n_negatives", type=int, default=5)
     parser_train.add_argument("--batch_size", type=int, default=512)
     parser_train.add_argument("--lr", type=float, default=0.025, dest="learning_rate")
-    parser_train.add_argument("--min_lr", type=float, default=0.0001)
+    parser_train.add_argument("--min_lr", type=float, default=None,
+                              help="LR decay floor (default: lr * 1e-4 when omitted)")
     parser_train.add_argument("--min_count", type=int, default=5)
     parser_train.add_argument("--subsample_threshold", type=float, default=1e-4)
     parser_train.add_argument("--save", type=str, default="./embeddings/model.npz", dest="save_path")

@@ -61,7 +61,10 @@ Updates follow SGD with linear learning rate decay over training.
 ## Installation
 
 ```bash
-pip install numpy
+python -m venv .venv
+.venv\Scripts\Activate.ps1   # Windows PowerShell
+# source .venv/bin/activate  # Unix
+pip install -r requirements.txt
 ```
 
 ---
@@ -87,6 +90,7 @@ python main.py train --data /path/to/corpus.txt \
     --min_lr 0.0001 \
     --min_count 5 \
     --subsample_threshold 1e-4 \
+    --phrase_passes 0 \
     --save ./embeddings/model.npz
 ```
 
@@ -109,7 +113,7 @@ The benchmark file is downloaded automatically on first run.
 | `n_negatives`         | 5       | Negative samples per positive pair; 5–20 recommended for large corpora    |
 | `batch_size`          | 512     | Skip-gram pairs per gradient step                                         |
 | `learning_rate`       | 0.025   | Initial LR; linearly decayed to `min_lr` over training                    |
-| `min_lr`              | 0.0001  | Minimum learning rate                                                     |
+| `min_lr`              | `learning_rate × 1e-4` | Minimum learning rate (Mikolov's `starting_alpha × 0.0001`)     |
 | `min_count`           | 5       | Words below this frequency are excluded from the vocabulary               |
 | `subsample_threshold` | 1e-4    | Controls how aggressively frequent words are discarded                    |
 
